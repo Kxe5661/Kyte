@@ -4,111 +4,271 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="theme-color" content="#0b1020" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#0f0c1d" />
 <title>Kyte</title>
 <style>
   :root {
-    --bg: #0b1020; --panel: #141a2f; --panel-2: #1b2240;
-    --text: #e8ecf8; --muted: #8b93b0; --accent: #4da3ff;
-    --ok: #37c978; --danger: #ff5d6c; --radius: 14px;
+    --bg: #0f0c1d;
+    --bg-soft: #161228;
+    --panel: #1b1631;
+    --panel-2: #241d40;
+    --text: #f4f0ff;
+    --muted: #9c92bd;
+    --faint: #6d6490;
+    --coral: #ff6b5e;
+    --coral-deep: #e84c54;
+    --violet: #8b7bff;
+    --mint: #3ddc97;
+    --rose: #ff5d7a;
+    --bubble-user: linear-gradient(135deg, #ff6b5e 0%, #c0569e 55%, #8b7bff 100%);
+    --r-lg: 22px; --r-md: 16px; --r-sm: 10px;
   }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; margin: 0; }
   body {
     background: var(--bg); color: var(--text);
-    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    display: flex; flex-direction: column;
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    display: flex; flex-direction: column; overscroll-behavior: none;
   }
+
+  /* ----- header ----- */
   header {
     display: flex; align-items: center; gap: 10px;
-    padding: calc(env(safe-area-inset-top) + 12px) 16px 12px;
-    background: var(--panel); border-bottom: 1px solid #232b4d;
+    padding: calc(env(safe-area-inset-top) + 14px) 18px 12px;
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    border-bottom: 1px solid #262043;
     position: sticky; top: 0; z-index: 5;
   }
-  header .logo { font-weight: 700; font-size: 18px; letter-spacing: .5px; }
-  header .logo span { color: var(--accent); }
-  #status { font-size: 12px; color: var(--muted); margin-left: auto; }
-  #status.thinking { color: var(--accent); }
-  #reset { background: none; border: 1px solid #2a3360; color: var(--muted);
-    border-radius: 8px; padding: 4px 10px; font-size: 12px; }
-
-  #chat { flex: 1; overflow-y: auto; padding: 14px 12px 8px; -webkit-overflow-scrolling: touch; }
-  .msg { max-width: 86%; margin: 6px 0; padding: 10px 14px; border-radius: var(--radius);
-    white-space: pre-wrap; word-break: break-word; }
-  .user { background: var(--accent); color: #06101f; margin-left: auto; border-bottom-right-radius: 4px; }
-  .assistant { background: var(--panel-2); border-bottom-left-radius: 4px; }
-  .error { background: #3a1522; color: #ffb3bc; font-size: 14px; }
-  .tool { color: var(--muted); font-size: 12.5px; padding: 4px 14px; max-width: 100%;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .tool .name { color: var(--accent); }
-  .tool pre { margin: 4px 0 0; white-space: pre-wrap; word-break: break-all;
-    max-height: 90px; overflow: hidden; opacity: .8; }
-
-  .approval { background: var(--panel-2); border: 1px solid #2a3360; border-radius: var(--radius);
-    padding: 12px 14px; margin: 8px 0; max-width: 100%; }
-  .approval h4 { margin: 0 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
-  .approval pre { background: #0d1326; border-radius: 8px; padding: 10px; margin: 0 0 10px;
-    font-size: 13px; white-space: pre-wrap; word-break: break-all; max-height: 160px; overflow-y: auto; }
-  .approval .btns { display: flex; gap: 10px; }
-  .approval button { flex: 1; padding: 10px; border: none; border-radius: 10px;
-    font-size: 15px; font-weight: 600; }
-  .approve { background: var(--ok); color: #06101f; }
-  .deny { background: #2a3360; color: var(--text); }
-  .approval.resolved .btns { display: none; }
-  .approval .verdict { font-size: 13px; font-weight: 600; }
-  .verdict.yes { color: var(--ok); } .verdict.no { color: var(--danger); }
-
-  footer {
-    display: flex; gap: 8px; padding: 10px 12px calc(env(safe-area-inset-bottom) + 10px);
-    background: var(--panel); border-top: 1px solid #232b4d;
+  .brand { display: flex; align-items: center; gap: 9px; }
+  .brand svg { display: block; }
+  .brand .name { font-weight: 800; font-size: 19px; letter-spacing: .3px; }
+  .brand .name i { font-style: normal; color: var(--coral); }
+  #statusDot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--faint); margin-left: 2px; transition: background .3s;
   }
-  #input { flex: 1; background: #0d1326; border: 1px solid #2a3360; color: var(--text);
-    border-radius: 22px; padding: 11px 16px; font-size: 16px; outline: none; }
-  #send { background: var(--accent); color: #06101f; border: none; border-radius: 50%;
-    width: 44px; height: 44px; font-size: 18px; font-weight: 700; flex-shrink: 0; }
-  #send:disabled { opacity: .5; }
+  #statusDot.thinking { background: var(--coral); animation: pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse { 50% { transform: scale(1.7); opacity: .5; } }
+  header .actions { margin-left: auto; display: flex; gap: 8px; }
+  .chip {
+    background: var(--panel); border: 1px solid #2d2650; color: var(--muted);
+    border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 600;
+    transition: all .2s;
+  }
+  .chip.on { background: var(--violet); border-color: var(--violet); color: #0f0c1d; }
+  .chip:active { transform: scale(.94); }
 
-  #login { position: fixed; inset: 0; background: var(--bg); z-index: 10;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; }
-  #login h1 { font-size: 28px; margin: 0; } #login h1 span { color: var(--accent); }
-  #login p { color: var(--muted); margin: 0; text-align: center; font-size: 14px; }
-  #password { background: #0d1326; border: 1px solid #2a3360; color: var(--text);
-    border-radius: 12px; padding: 12px 16px; font-size: 18px; text-align: center; width: 220px; }
-  #login button { background: var(--accent); color: #06101f; border: none; border-radius: 12px;
-    padding: 12px 32px; font-size: 16px; font-weight: 700; }
-  #loginErr { color: var(--danger); font-size: 14px; min-height: 18px; }
+  /* ----- live screen ----- */
+  #live {
+    display: none; padding: 10px 14px 4px;
+    animation: slideDown .35s cubic-bezier(.34,1.4,.44,1);
+  }
+  #live.open { display: block; }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-14px); } }
+  #live .frame {
+    border-radius: var(--r-md); overflow: hidden;
+    border: 1px solid #332a5e; background: var(--bg-soft);
+    position: relative;
+  }
+  #liveImg { display: block; width: 100%; min-height: 120px; object-fit: contain; }
+  #live .tag {
+    position: absolute; top: 10px; left: 10px;
+    background: rgba(15,12,29,.72); backdrop-filter: blur(6px);
+    color: var(--mint); font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    padding: 4px 10px; border-radius: 999px; display: flex; align-items: center; gap: 6px;
+  }
+  #live .tag::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--mint); animation: pulse 1.4s infinite;
+  }
+  #liveErr { color: var(--rose); font-size: 13px; padding: 10px 14px; display: none; }
+
+  /* ----- chat ----- */
+  #chat { flex: 1; overflow-y: auto; padding: 16px 14px 10px; -webkit-overflow-scrolling: touch; }
+  .msg {
+    max-width: 84%; margin: 7px 0; padding: 11px 16px;
+    border-radius: var(--r-lg); white-space: pre-wrap; word-break: break-word;
+    animation: pop .3s cubic-bezier(.34,1.45,.44,1);
+  }
+  @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+  .user {
+    background: var(--bubble-user); color: #fff; font-weight: 500;
+    margin-left: auto; border-bottom-right-radius: 6px;
+  }
+  .assistant { background: var(--panel-2); border-bottom-left-radius: 6px; }
+  .error { background: #35152b; color: #ff9eb0; font-size: 14px; border: 1px solid #58224a; }
+
+  .tool {
+    color: var(--faint); font-size: 12.5px; padding: 3px 6px; max-width: 100%;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    animation: pop .25s ease-out;
+  }
+  .tool .name { color: var(--violet); font-weight: 600; }
+  .tool pre {
+    margin: 3px 0 0; white-space: pre-wrap; word-break: break-all;
+    max-height: 84px; overflow: hidden; opacity: .75;
+  }
+
+  /* typing dots — a little homage */
+  #typing { display: none; }
+  #typing.on { display: inline-flex; }
+  .dots {
+    background: var(--panel-2); border-radius: var(--r-lg); border-bottom-left-radius: 6px;
+    padding: 15px 18px; margin: 7px 0; display: inline-flex; gap: 5px;
+  }
+  .dots span {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--violet);
+    animation: bounce 1.2s infinite;
+  }
+  .dots span:nth-child(2) { animation-delay: .15s; background: var(--coral); }
+  .dots span:nth-child(3) { animation-delay: .3s; background: var(--mint); }
+  @keyframes bounce { 30% { transform: translateY(-6px); opacity: .6; } }
+
+  /* ----- approval card ----- */
+  .approval {
+    background: var(--panel); border: 1.5px solid var(--coral);
+    border-radius: var(--r-md); padding: 14px 16px; margin: 10px 0; max-width: 100%;
+    animation: pop .35s cubic-bezier(.34,1.45,.44,1);
+  }
+  .approval h4 {
+    margin: 0 0 8px; font-size: 12px; color: var(--coral);
+    font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px;
+  }
+  .approval pre {
+    background: var(--bg); border-radius: var(--r-sm); padding: 11px 13px; margin: 0 0 12px;
+    font-size: 13px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    white-space: pre-wrap; word-break: break-all; max-height: 170px; overflow-y: auto;
+    color: #d8d1f2;
+  }
+  .approval .btns { display: flex; gap: 10px; }
+  .approval button {
+    flex: 1; padding: 12px; border: none; border-radius: 12px;
+    font-size: 15px; font-weight: 700; transition: transform .15s;
+  }
+  .approval button:active { transform: scale(.95); }
+  .approve { background: var(--mint); color: #0a2417; }
+  .deny { background: var(--panel-2); color: var(--muted); border: 1px solid #2d2650 !important; }
+  .approval.resolved .btns { display: none; }
+  .verdict { font-size: 13.5px; font-weight: 700; }
+  .verdict.yes { color: var(--mint); } .verdict.no { color: var(--rose); }
+
+  .note { color: var(--faint); font-size: 12.5px; text-align: center; padding: 8px 0; }
+
+  /* ----- composer ----- */
+  footer {
+    display: flex; gap: 10px; align-items: center;
+    padding: 12px 14px calc(env(safe-area-inset-bottom) + 12px);
+    background: color-mix(in srgb, var(--bg) 85%, transparent);
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    border-top: 1px solid #262043;
+  }
+  #input {
+    flex: 1; background: var(--panel); border: 1.5px solid #2d2650; color: var(--text);
+    border-radius: 24px; padding: 13px 18px; font-size: 16px; outline: none;
+    transition: border-color .25s;
+  }
+  #input:focus { border-color: var(--violet); }
+  #input::placeholder { color: var(--faint); }
+  #send {
+    background: var(--bubble-user); color: #fff; border: none; border-radius: 50%;
+    width: 48px; height: 48px; font-size: 20px; flex-shrink: 0;
+    display: grid; place-items: center; transition: transform .15s, opacity .2s;
+  }
+  #send:active { transform: scale(.88) rotate(-8deg); }
+  #send:disabled { opacity: .4; }
+
+  /* ----- login ----- */
+  #login {
+    position: fixed; inset: 0; background: var(--bg); z-index: 10;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; padding: 28px; text-align: center;
+  }
+  #login .bigkite { animation: float 4s ease-in-out infinite; }
+  @keyframes float { 50% { transform: translateY(-10px) rotate(3deg); } }
+  #login h1 { font-size: 34px; margin: 0; font-weight: 800; }
+  #login h1 i { font-style: normal; color: var(--coral); }
+  #login p { color: var(--muted); margin: 0; font-size: 14.5px; line-height: 1.6; }
+  #password {
+    background: var(--panel); border: 1.5px solid #2d2650; color: var(--text);
+    border-radius: 14px; padding: 14px 18px; font-size: 18px; text-align: center;
+    width: 230px; outline: none; transition: border-color .25s;
+  }
+  #password:focus { border-color: var(--coral); }
+  #login button {
+    background: var(--bubble-user); color: #fff; border: none; border-radius: 14px;
+    padding: 14px 44px; font-size: 16px; font-weight: 700; transition: transform .15s;
+  }
+  #login button:active { transform: scale(.94); }
+  #loginErr { color: var(--rose); font-size: 14px; min-height: 18px; margin: 0; }
   .hidden { display: none !important; }
+
+  /* desktop: keep the conversation a comfortable column */
+  @media (min-width: 700px) {
+    #chat, #live { max-width: 740px; margin-left: auto; margin-right: auto; width: 100%; }
+    footer { justify-content: center; }
+    #input { max-width: 672px; }
+  }
 </style>
 </head>
 <body>
   <div id="login" class="hidden">
-    <h1>K<span>y</span>te</h1>
-    <p>Enter the password shown in the Kyte<br/>terminal on your Mac.</p>
+    <svg class="bigkite" width="72" height="72" viewBox="0 0 72 72" fill="none">
+      <path d="M36 4 L58 30 L36 50 L14 30 Z" fill="#ff6b5e"/>
+      <path d="M36 4 L58 30 L36 50 Z" fill="#8b7bff"/>
+      <path d="M36 50 C 38 58, 32 60, 34 68" stroke="#9c92bd" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <circle cx="31" cy="59" r="2.6" fill="#3ddc97"/>
+      <circle cx="37" cy="66" r="2.6" fill="#ff6b5e"/>
+    </svg>
+    <h1>K<i>y</i>te</h1>
+    <p>Your Mac, on a string.<br/>Enter the password from the Kyte terminal.</p>
     <input id="password" type="password" placeholder="password" autocomplete="current-password" />
-    <button onclick="tryLogin()">Connect</button>
-    <div id="loginErr"></div>
+    <button onclick="tryLogin()">Let's fly</button>
+    <p id="loginErr"></p>
   </div>
 
   <header>
-    <div class="logo">K<span>y</span>te</div>
-    <div id="status">idle</div>
-    <button id="reset" onclick="resetChat()">New chat</button>
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 72 72" fill="none">
+        <path d="M36 4 L58 30 L36 50 L14 30 Z" fill="#ff6b5e"/>
+        <path d="M36 4 L58 30 L36 50 Z" fill="#8b7bff"/>
+        <path d="M36 50 C 38 58, 32 60, 34 68" stroke="#9c92bd" stroke-width="3" fill="none" stroke-linecap="round"/>
+      </svg>
+      <span class="name">K<i>y</i>te</span>
+      <span id="statusDot"></span>
+    </div>
+    <div class="actions">
+      <button class="chip" id="liveBtn" onclick="toggleLive()">Live</button>
+      <button class="chip" onclick="resetChat()">New</button>
+    </div>
   </header>
 
+  <div id="live">
+    <div class="frame">
+      <span class="tag">LIVE</span>
+      <img id="liveImg" alt="Live view of your Mac screen" />
+    </div>
+    <div id="liveErr"></div>
+  </div>
+
   <div id="chat"></div>
+  <div style="padding: 0 14px;"><div id="typing" class="dots"><span></span><span></span><span></span></div></div>
 
   <footer>
-    <input id="input" placeholder="Tell Kyte what to do…" autocomplete="off" />
-    <button id="send" onclick="send()">↑</button>
+    <input id="input" placeholder="Tell Kyte what to do…" autocomplete="off" enterkeyhint="send" />
+    <button id="send" onclick="send()" aria-label="Send">↑</button>
   </footer>
 
 <script>
   const chat = document.getElementById('chat');
   const input = document.getElementById('input');
   const sendBtn = document.getElementById('send');
-  const statusEl = document.getElementById('status');
+  const statusDot = document.getElementById('statusDot');
+  const typing = document.getElementById('typing');
   let auth = localStorage.getItem('kyte_auth') || '';
   let es = null;
+  let liveTimer = null;
 
   function api(path, opts = {}) {
     return fetch(path, {
@@ -119,11 +279,9 @@
 
   async function tryLogin() {
     auth = document.getElementById('password').value.trim();
-    const r = await fetch('/api/events?auth=' + encodeURIComponent(auth), { method: 'HEAD' }).catch(() => null);
-    // HEAD on SSE isn't reliable everywhere; just probe with a harmless authorized call
-    const probe = await api('/api/approve', { method: 'POST', body: '{}' });
-    if (probe.status === 401) {
-      document.getElementById('loginErr').textContent = 'Wrong password';
+    const probe = await api('/api/approve', { method: 'POST', body: '{}' }).catch(() => null);
+    if (!probe || probe.status === 401) {
+      document.getElementById('loginErr').textContent = 'Hmm, that\u2019s not it \u2014 check the terminal.';
       return;
     }
     localStorage.setItem('kyte_auth', auth);
@@ -131,9 +289,7 @@
     connect();
   }
 
-  function showLogin() {
-    document.getElementById('login').classList.remove('hidden');
-  }
+  function showLogin() { document.getElementById('login').classList.remove('hidden'); }
 
   function el(tag, cls, text) {
     const e = document.createElement(tag);
@@ -148,40 +304,48 @@
     if (!args) return '';
     if (args.command) return args.command;
     if (args.script) return args.script;
+    if (args.fact) return args.fact;
     return JSON.stringify(args, null, 2);
   }
+
+  const FRIENDLY = {
+    run_shell: 'running a command', run_applescript: 'controlling an app',
+    open_app: 'opening an app', open_url: 'opening a link',
+    read_file: 'reading a file', write_file: 'writing a file',
+    list_dir: 'looking in a folder', save_memory: 'remembering',
+  };
 
   function render(ev) {
     if (ev.type === 'user') chat.appendChild(el('div', 'msg user', ev.text));
     else if (ev.type === 'assistant') chat.appendChild(el('div', 'msg assistant', ev.text));
     else if (ev.type === 'error') chat.appendChild(el('div', 'msg error', ev.text));
     else if (ev.type === 'status') {
-      statusEl.textContent = ev.state === 'thinking' ? 'thinking…' : 'idle';
-      statusEl.className = ev.state === 'thinking' ? 'thinking' : '';
-      if (ev.note) chat.appendChild(el('div', 'tool', ev.note));
-      sendBtn.disabled = ev.state === 'thinking';
+      const thinking = ev.state === 'thinking';
+      statusDot.className = thinking ? 'thinking' : '';
+      typing.className = thinking ? 'dots on' : 'dots';
+      sendBtn.disabled = thinking;
+      if (ev.note) chat.appendChild(el('div', 'note', ev.note));
     }
     else if (ev.type === 'tool_start') {
       const d = el('div', 'tool');
       const label = el('div');
-      label.innerHTML = '⚙︎ <span class="name"></span>';
-      label.querySelector('.name').textContent = ev.name;
+      const name = el('span', 'name', FRIENDLY[ev.name] || ev.name);
+      label.append('\u2735 ', name);
       d.appendChild(label);
-      const pre = el('pre', '', fmtArgs(ev.args));
-      d.appendChild(pre);
+      d.appendChild(el('pre', '', fmtArgs(ev.args)));
       chat.appendChild(d);
     }
     else if (ev.type === 'approval_request') {
       const card = el('div', 'approval');
       card.dataset.id = ev.id;
-      card.appendChild(el('h4', '', 'Kyte wants to run: ' + ev.name));
+      card.appendChild(el('h4', '', 'Kyte asks \u2014 ' + (FRIENDLY[ev.name] || ev.name)));
       card.appendChild(el('pre', '', fmtArgs(ev.args)));
       const btns = el('div', 'btns');
-      const ok = el('button', 'approve', 'Approve');
       const no = el('button', 'deny', 'Deny');
+      const ok = el('button', 'approve', 'Approve');
       ok.onclick = () => decide(ev.id, true);
       no.onclick = () => decide(ev.id, false);
-      btns.appendChild(no); btns.appendChild(ok);
+      btns.append(no, ok);
       card.appendChild(btns);
       card.appendChild(el('div', 'verdict'));
       chat.appendChild(card);
@@ -190,8 +354,9 @@
       const card = chat.querySelector('.approval[data-id="' + ev.id + '"]');
       if (card) {
         card.classList.add('resolved');
+        card.style.borderColor = ev.approved ? 'var(--mint)' : '#2d2650';
         const v = card.querySelector('.verdict');
-        v.textContent = ev.approved ? '✓ Approved' : '✕ Denied' + (ev.reason === 'timeout' ? ' (timed out)' : '');
+        v.textContent = ev.approved ? '\u2713 Approved' : '\u2715 Denied' + (ev.reason === 'timeout' ? ' (timed out)' : '');
         v.classList.add(ev.approved ? 'yes' : 'no');
       }
     }
@@ -208,7 +373,6 @@
     input.value = '';
     const r = await api('/api/message', { method: 'POST', body: JSON.stringify({ text }) });
     if (r.status === 401) { showLogin(); return; }
-    if (r.status === 409) alert('Kyte is still working — wait for it to finish.');
   }
 
   async function resetChat() {
@@ -216,15 +380,43 @@
     chat.innerHTML = '';
   }
 
+  // ----- Live Screen -----
+  function toggleLive() {
+    const panel = document.getElementById('live');
+    const btn = document.getElementById('liveBtn');
+    const on = !panel.classList.contains('open');
+    panel.classList.toggle('open', on);
+    btn.classList.toggle('on', on);
+    if (on) { refreshLive(); liveTimer = setInterval(refreshLive, 1200); }
+    else { clearInterval(liveTimer); liveTimer = null; }
+  }
+
+  async function refreshLive() {
+    const img = document.getElementById('liveImg');
+    const err = document.getElementById('liveErr');
+    try {
+      const r = await api('/api/screen');
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}));
+        err.textContent = data.error || 'Screen capture unavailable.';
+        err.style.display = 'block';
+        return;
+      }
+      err.style.display = 'none';
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const old = img.src;
+      img.src = url;
+      if (old) URL.revokeObjectURL(old);
+    } catch { /* transient network hiccup — next tick will retry */ }
+  }
+
   function connect() {
     if (es) es.close();
     chat.innerHTML = '';
     es = new EventSource('/api/events?auth=' + encodeURIComponent(auth));
     es.onmessage = (m) => render(JSON.parse(m.data));
-    es.onerror = () => {
-      // If auth failed the stream closes immediately; show login.
-      if (es.readyState === EventSource.CLOSED) showLogin();
-    };
+    es.onerror = () => { if (es.readyState === EventSource.CLOSED) showLogin(); };
   }
 
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });

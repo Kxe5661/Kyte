@@ -3,11 +3,12 @@
 
 const os = require('os');
 const { TOOL_DECLARATIONS, executeTool, isRisky } = require('./tools');
+const { loadMemory } = require('./memory');
 
 const MAX_STEPS = 15;
 
 function systemPrompt() {
-  return [
+  const lines = [
     `You are Kyte, a personal AI assistant that runs on the user's Mac (${os.hostname()}, macOS).`,
     `The user usually messages you from their iPhone, so keep replies short and skimmable.`,
     `Current date/time: ${new Date().toString()}.`,
@@ -20,7 +21,17 @@ function systemPrompt() {
     `- If a tool result is denied by the user, don't retry it; ask what they'd prefer.`,
     `- When a request is ambiguous or dangerous, ask before acting.`,
     `- After finishing, reply with a one or two sentence confirmation of what you did.`,
-  ].join('\n');
+    `- When the user shares a lasting preference, routine, or important detail, store it with save_memory.`,
+  ];
+  const memory = loadMemory();
+  if (memory) {
+    lines.push(
+      ``,
+      `Your long-term memory about the user (from previous conversations):`,
+      memory
+    );
+  }
+  return lines.join('\n');
 }
 
 async function callGemini(history, config) {

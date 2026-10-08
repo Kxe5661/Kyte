@@ -6,6 +6,7 @@ const { exec, execFile } = require('child_process');
 const fs = require('fs/promises');
 const os = require('os');
 const path = require('path');
+const { appendMemory } = require('./memory');
 
 const MAX_OUTPUT = 8000; // chars of tool output sent back to the model
 const SHELL_TIMEOUT_MS = 30_000;
@@ -80,6 +81,18 @@ const TOOL_DECLARATIONS = [
         content: { type: 'STRING', description: 'Full file contents to write.' },
       },
       required: ['path', 'content'],
+    },
+  },
+  {
+    name: 'save_memory',
+    description:
+      "Save a lasting fact to Kyte's long-term memory — user preferences, recurring details, important context (e.g. \"prefers Spotify over Music\", \"timesheet form is at https://…\"). Use whenever the user shares something worth remembering for future conversations.",
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        fact: { type: 'STRING', description: 'One concise fact to remember.' },
+      },
+      required: ['fact'],
     },
   },
   {
@@ -164,6 +177,8 @@ const IMPLEMENTATIONS = {
       return { error: String(e.message) };
     }
   },
+
+  save_memory: ({ fact }) => appendMemory(fact),
 
   list_dir: async ({ path: p } = {}) => {
     try {

@@ -7,7 +7,9 @@ const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { execFile } = require('child_process');
 const { runAgent } = require('./agent');
+const { DATA_DIR } = require('./memory');
 
 const PORT = Number(process.env.PORT || 3171);
 
@@ -30,12 +32,46 @@ const config = {
   model: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
 };
 
-// --- State (single conversation, in memory) ---
+// --- State (single conversation, persisted to disk) ---
+const STATE_PATH = path.join(DATA_DIR, 'state.json');
 const history = []; // Gemini "contents"
 const uiLog = []; // events replayed to the UI on connect
 const clients = new Set(); // SSE responses
 const approvals = new Map(); // id -> resolve(boolean)
 let busy = false;
+
+try {
+  const saved = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
+  history.push(...(saved.history || []));
+  uiLog.push(...(saved.uiLog || []));
+} catch {
+  /* first run — nothing saved yet */
+}
+
+let saveTimer = null;
+function saveState() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(STATE_PATH, JSON.stringify({ history, uiLog }));
+    } catch (e) {
+      console.error('Failed to save state:', e.message);
+    }
+  }, 400);
+}
+
+// Keep history from growing forever: trim oldest turns at a safe boundary
+// (a user text message) so function call/response pairs stay intact.
+function trimHistory() {
+  const MAX = 240;
+  while (history.length > MAX) {
+    history.shift();
+    while (history.length && !(history[0].role === 'user' && history[0].parts?.some((p) => p.text))) {
+      history.shift();
+    }
+  }
+}
 
 function emit(event) {
   const ev = { ...event, ts: Date.now() };
@@ -43,6 +79,7 @@ function emit(event) {
   if (uiLog.length > 500) uiLog.splice(0, uiLog.length - 500);
   const payload = `data: ${JSON.stringify(ev)}\n\n`;
   for (const res of clients) res.write(payload);
+  saveState();
 }
 
 function requestApproval(name, args) {
@@ -109,9 +146,45 @@ app.post('/api/message', (req, res) => {
     .catch((e) => emit({ type: 'error', text: String(e.message) }))
     .finally(() => {
       busy = false;
+      trimHistory();
       emit({ type: 'status', state: 'idle' });
     });
   res.json({ ok: true });
+});
+
+// --- Live Screen: capture the Mac's display for the phone ---
+// Needs macOS Screen Recording permission for your terminal the first time.
+let lastShot = { t: 0, buf: null };
+let capturing = false;
+app.get('/api/screen', async (req, res) => {
+  if (lastShot.buf && Date.now() - lastShot.t < 700) {
+    return res.type('image/jpeg').send(lastShot.buf);
+  }
+  if (capturing && lastShot.buf) {
+    return res.type('image/jpeg').send(lastShot.buf);
+  }
+  capturing = true;
+  const tmp = path.join(os.tmpdir(), 'kyte-screen.jpg');
+  try {
+    await new Promise((resolve, reject) =>
+      execFile('screencapture', ['-x', '-t', 'jpg', tmp], (err) => (err ? reject(err) : resolve()))
+    );
+    // Downscale to keep the stream light over Wi-Fi.
+    await new Promise((resolve) =>
+      execFile('sips', ['-Z', '1280', tmp], () => resolve())
+    );
+    const buf = fs.readFileSync(tmp);
+    lastShot = { t: Date.now(), buf };
+    res.type('image/jpeg').send(buf);
+  } catch (e) {
+    res.status(500).json({
+      error:
+        'Screen capture failed. Grant Screen Recording permission to your terminal in System Settings → Privacy & Security → Screen Recording, then restart Kyte.',
+      detail: String(e.message),
+    });
+  } finally {
+    capturing = false;
+  }
 });
 
 app.post('/api/approve', (req, res) => {
@@ -126,6 +199,7 @@ app.post('/api/reset', (req, res) => {
   history.length = 0;
   uiLog.length = 0;
   emit({ type: 'status', state: 'idle', note: 'New conversation started.' });
+  saveState();
   res.json({ ok: true });
 });
 

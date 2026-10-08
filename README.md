@@ -29,7 +29,9 @@ of approval on your phone before they run.
 5. **Permissions:** the first time Kyte controls an app via AppleScript, macOS
    will pop up a permission dialog on the Mac — click OK. For UI-level control,
    grant your terminal app access in System Settings → Privacy & Security →
-   Accessibility.
+   Accessibility. For the Live Screen view, allow Screen Recording for your
+   terminal when macOS asks (System Settings → Privacy & Security → Screen
+   Recording), then restart Kyte.
 
 ## Using Kyte
 
@@ -42,6 +44,14 @@ Just tell it what you want:
 
 Shell commands, AppleScript, and file writes show an **Approve / Deny** card on
 your phone before they run. Read-only actions run automatically.
+
+**Live Screen:** tap **Live** in the header to watch your Mac's screen in real
+time from your phone while Kyte works.
+
+**Memory:** Kyte remembers lasting facts you share (preferences, routines,
+form details) in `data/memory.md` — a plain text file you can open and edit.
+Conversations also survive restarts (`data/state.json`); tap **New** to start
+fresh.
 
 ## Away from home?
 
