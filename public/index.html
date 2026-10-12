@@ -88,6 +88,34 @@
   #statusDot.thinking { background: var(--accent); animation: breathe 1.8s ease-in-out infinite; }
   #statusDot.waiting { background: var(--ink); animation: breathe 1.8s ease-in-out infinite; }
   @keyframes breathe { 50% { opacity: .35; } }
+  .mark {
+    width: 28px; height: 28px; flex: none;
+    display: block;
+  }
+  .sigil-stage {
+    position: fixed;
+    left: 50%;
+    top: 42%;
+    transform: translate(-50%, -58%);
+    width: min(88vw, 380px);
+    height: min(48vh, 380px);
+    z-index: 6;
+    pointer-events: none;
+    background: transparent;
+    border: none;
+  }
+  .sigil-stage[hidden] { display: none !important; }
+  .sigil-stage canvas { width: 100%; height: 100%; display: block; }
+  .sigil-caption {
+    position: absolute;
+    left: 0; right: 0; bottom: 6%;
+    text-align: center;
+    color: #f4efe6;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    text-shadow: 0 8px 24px #0b0c0f;
+  }
   header .actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
   .chip, .textbtn {
     background: transparent;
@@ -604,7 +632,7 @@
 
   <header>
     <div class="brand">
-      <span class="monogram" aria-hidden="true"></span>
+      <canvas class="mark" id="mark" width="56" height="56" aria-hidden="true"></canvas>
       <div>
         <div class="wordmark">Kyte</div>
         <div class="presence"><span id="statusDot"></span><span id="statusWord">Ready</span></div>
@@ -660,6 +688,11 @@
       </div>
       <div id="vaultToast"></div>
     </div>
+  </div>
+
+  <div id="sigilStage" class="sigil-stage" hidden>
+    <canvas id="sigil" width="640" height="640" aria-hidden="true"></canvas>
+    <div id="sigilCaption" class="sigil-caption"></div>
   </div>
 
   <div id="chat"></div>
@@ -828,10 +861,13 @@
 
   function setNow(text) {
     const n = document.getElementById('now');
-    if (!n) return;
     const t = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 72);
-    n.textContent = t;
-    n.hidden = !t;
+    if (n) {
+      n.textContent = t;
+      n.hidden = !t;
+    }
+    const cap = document.getElementById('sigilCaption');
+    if (cap) cap.textContent = t;
   }
 
   function setPresence(state) {
@@ -840,7 +876,207 @@
     if (statusDot) statusDot.className = thinking ? 'thinking' : waiting ? 'waiting' : '';
     if (statusWord) statusWord.textContent = thinking ? 'Working' : waiting ? 'Waiting' : 'Ready';
     if (sendBtn) sendBtn.disabled = thinking || waiting;
+    if (!thinking && !waiting) setSigil('idle');
+    else if (waiting) setSigil('wait');
+    else if (sigilMood === 'idle') setSigil('think');
   }
+
+  const SIGIL = {
+    idle:  { speed: 0.22, sharp: 0.15, pulse: 0.18, rings: 0 },
+    think: { speed: 0.62, sharp: 0.28, pulse: 0.55, rings: 0 },
+    read:  { speed: 0.38, sharp: 0.02, pulse: 0.42, rings: 0.15 },
+    act:   { speed: 1.05, sharp: 1, pulse: 0.34, rings: 0 },
+    call:  { speed: 0.74, sharp: 0.42, pulse: 0.9, rings: 1 },
+    wait:  { speed: 0.18, sharp: 0.08, pulse: 0.7, rings: 0.45 },
+  };
+  let sigilMood = 'idle';
+  let sigilLive = Object.assign({}, SIGIL.idle);
+  let sigilTarget = Object.assign({}, SIGIL.idle);
+  let sigilTime = 0;
+  let sigilRaf = 0;
+  const sigilReduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function moodForTool(name) {
+    const n = String(name || '');
+    if (n === 'ask_user' || n === 'approve_system_dialog') return 'wait';
+    if (n === 'facetime_call' || n === 'send_imessage' || n === 'find_contact') return 'call';
+    if (/safari_click|safari_fill|use_computer|web_task|run_applescript|open_app/.test(n)) return 'act';
+    if (/safari_read|safari_eval|safari_open|fetch_url|see_screen/.test(n)) return 'read';
+    if (/memory|vault|schedule/.test(n)) return 'think';
+    return 'think';
+  }
+
+  function placeSigil() {
+    const stage = document.getElementById('sigilStage');
+    if (!stage || stage.hidden) return;
+    const vv = window.visualViewport;
+    const top = vv ? vv.offsetTop : 0;
+    const h = vv ? vv.height : window.innerHeight;
+    const y = sigilMood === 'wait' ? top + Math.min(150, h * 0.22) : top + h * 0.4;
+    stage.style.top = y + 'px';
+  }
+
+  function setSigil(next) {
+    if (!SIGIL[next]) next = 'think';
+    sigilMood = next;
+    sigilTarget = SIGIL[next];
+    const stage = document.getElementById('sigilStage');
+    if (stage) stage.hidden = next === 'idle';
+    placeSigil();
+    if (!sigilRaf) sigilRaf = requestAnimationFrame(drawSigil);
+  }
+
+  function lerpSigil(a, b, t) { return a + (b - a) * t; }
+
+  function fitCanvas(canvas) {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(2, Math.round(rect.width * dpr));
+    const h = Math.max(2, Math.round(rect.height * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+  }
+
+  function formScale(theta, sharp) {
+    const sector = (Math.PI * 2) / 3;
+    const a = ((theta % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    const local = (a % sector) - sector / 2;
+    const tri = Math.cos(Math.PI / 3) / Math.max(0.22, Math.cos(local));
+    return (1 - sharp) + tri * sharp;
+  }
+
+  function traceForm(ctx, cx, cy, R, rot, sharp, squash) {
+    const steps = 90;
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const t = (i / steps) * Math.PI * 2;
+      const k = formScale(t, sharp);
+      const ang = t + rot;
+      const x = cx + Math.cos(ang) * R * k;
+      const y = cy + Math.sin(ang) * R * k * squash;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  }
+
+  function paintSigil(canvas, big) {
+    if (!canvas) return;
+    fitCanvas(canvas);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const w = canvas.width;
+    const h = canvas.height;
+    const cx = w / 2;
+    const cy = h / 2;
+    const s = sigilLive;
+    ctx.clearRect(0, 0, w, h);
+    const breathe = 1 + Math.sin(sigilTime * (0.9 + s.pulse * 1.4)) * (big ? 0.045 : 0.03) * (0.4 + s.pulse);
+    const radius = Math.min(w, h) * (big ? 0.34 : 0.36) * breathe;
+    const squash = big ? 0.92 : 1;
+    const rot = sigilTime * s.speed * (big ? 0.55 : 0.35);
+
+    const bloom = ctx.createRadialGradient(cx, cy, radius * 0.05, cx, cy, radius * 1.85);
+    bloom.addColorStop(0, 'rgba(244,239,230,' + (0.16 + s.pulse * 0.18) + ')');
+    bloom.addColorStop(0.35, 'rgba(198,165,122,' + (0.22 + s.pulse * 0.2) + ')');
+    bloom.addColorStop(1, 'rgba(198,165,122,0)');
+    ctx.fillStyle = bloom;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, radius * 1.7, radius * 1.35, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (big && s.rings > 0.04) {
+      for (let i = 0; i < 3; i++) {
+        const phase = (sigilTime * (0.22 + s.pulse * 0.25) + i * 0.33) % 1;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, radius * (0.55 + phase * 1.35), radius * (0.55 + phase * 1.35) * squash, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(198,165,122,' + ((1 - phase) * 0.42 * s.rings) + ')';
+        ctx.lineWidth = Math.max(1, h * 0.004);
+        ctx.stroke();
+      }
+    }
+
+    ctx.save();
+    ctx.globalAlpha = 0.35 + (1 - s.sharp) * 0.25;
+    traceForm(ctx, cx, cy, radius * 1.08, -rot * 0.72, Math.max(0, s.sharp * 0.85), squash);
+    ctx.strokeStyle = 'rgba(198,165,122,0.55)';
+    ctx.lineWidth = Math.max(1, h * (big ? 0.006 : 0.03));
+    ctx.stroke();
+    ctx.restore();
+
+    traceForm(ctx, cx, cy, radius, rot, s.sharp, squash);
+    const fill = ctx.createRadialGradient(cx, cy - radius * 0.15, radius * 0.05, cx, cy, radius);
+    fill.addColorStop(0, 'rgba(244,239,230,' + (0.22 + (1 - s.sharp) * 0.2) + ')');
+    fill.addColorStop(0.55, 'rgba(198,165,122,' + (0.16 + s.pulse * 0.12) + ')');
+    fill.addColorStop(1, 'rgba(198,165,122,0.02)');
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(244,239,230,' + (0.72 + s.sharp * 0.25) + ')';
+    ctx.lineWidth = Math.max(1.25, h * (big ? 0.008 : 0.045));
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+
+    if (big) {
+      const count = 14;
+      for (let i = 0; i < count; i++) {
+        const orbit = sigilTime * (0.25 + s.speed * 0.35) * (i % 2 ? 1 : -1) + i * 0.9;
+        const rr = radius * (1.15 + (i % 4) * 0.09);
+        const x = cx + Math.cos(orbit) * rr;
+        const y = cy + Math.sin(orbit) * rr * 0.62;
+        const alpha = 0.15 + (i % 5) * 0.08;
+        ctx.beginPath();
+        ctx.arc(x, y, Math.max(0.8, h * 0.006), 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(244,239,230,' + alpha + ')';
+        ctx.fill();
+      }
+      for (let i = 0; i < 3; i++) {
+        const ang = rot + i * (Math.PI * 2 / 3);
+        const k = formScale(i * (Math.PI * 2 / 3), s.sharp);
+        const x = cx + Math.cos(ang) * radius * k;
+        const y = cy + Math.sin(ang) * radius * k * squash;
+        const spark = ctx.createRadialGradient(x, y, 0, x, y, radius * 0.22);
+        spark.addColorStop(0, 'rgba(244,239,230,0.95)');
+        spark.addColorStop(1, 'rgba(198,165,122,0)');
+        ctx.fillStyle = spark;
+        ctx.beginPath();
+        ctx.arc(x, y, radius * 0.22, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    const core = Math.max(1.5, h * (big ? 0.012 : 0.06));
+    const coreGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, core * 4);
+    coreGlow.addColorStop(0, 'rgba(244,239,230,0.95)');
+    coreGlow.addColorStop(1, 'rgba(244,239,230,0)');
+    ctx.fillStyle = coreGlow;
+    ctx.beginPath();
+    ctx.arc(cx, cy, core * 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy, core, 0, Math.PI * 2);
+    ctx.fillStyle = '#f4efe6';
+    ctx.fill();
+  }
+
+  function drawSigil() {
+    const step = sigilReduce ? 1 : 0.08;
+    sigilLive.speed = lerpSigil(sigilLive.speed, sigilTarget.speed, step);
+    sigilLive.sharp = lerpSigil(sigilLive.sharp, sigilTarget.sharp, step);
+    sigilLive.pulse = lerpSigil(sigilLive.pulse, sigilTarget.pulse, step);
+    sigilLive.rings = lerpSigil(sigilLive.rings, sigilTarget.rings, step);
+    if (!sigilReduce) sigilTime += 0.016;
+    paintSigil(document.getElementById('mark'), false);
+    paintSigil(document.getElementById('sigil'), true);
+    placeSigil();
+    sigilRaf = requestAnimationFrame(drawSigil);
+  }
+  if (window.visualViewport) {
+    visualViewport.addEventListener('resize', placeSigil);
+    visualViewport.addEventListener('scroll', placeSigil);
+  }
+  setSigil('idle');
 
   function cardById(className, id) {
     if (!chat || !id) return null;
@@ -938,12 +1174,14 @@
     } else if (ev.type === 'gate') {
       if (ev.verdict === 'deny') chat.appendChild(el('div', 'msg error' + hist, asText(ev.reason || 'Blocked', 300)));
     } else if (ev.type === 'computer') {
+      setSigil('act');
       setNow(asText(ev.summary || 'Using the screen', 72));
     } else if (ev.type === 'schedule_run') {
       chat.appendChild(el('div', 'note' + hist, 'Scheduled · ' + asText(ev.label || ev.id, 80)));
     } else if (ev.type === 'learned') {
       chat.appendChild(el('div', 'note' + hist, 'Noted · ' + asText(ev.summary || 'filed that away', 120)));
     } else if (ev.type === 'tool_start') {
+      setSigil(moodForTool(ev.name));
       setNow(sentence(FRIENDLY[ev.name] || asText(ev.name, 40)));
       notePersonFromTool(ev);
     } else if (ev.type === 'approval_request') {
@@ -964,17 +1202,17 @@
       card.appendChild(btns);
       card.appendChild(el('div', 'verdict'));
       chat.appendChild(card);
-      if (isFresh(ev)) setNow('Waiting for approval');
+      if (isFresh(ev)) { setSigil('wait'); setNow('Waiting for approval'); }
     } else if (ev.type === 'approval_resolved') {
       const card = cardById('approval', ev.id);
       if (card) card.style.borderColor = ev.approved ? 'rgba(183,196,174,0.7)' : 'rgba(244,239,230,0.12)';
       setVerdict(card, ev.approved, ev.approved ? 'Approved' : ('Denied' + (ev.reason === 'timeout' ? ' · timed out' : '')));
-    } else if (ev.type === 'poll') renderChoice(ev);
-    else if (ev.type === 'form') renderForm(ev);
+    } else if (ev.type === 'poll') { setSigil('wait'); renderChoice(ev); }
+    else if (ev.type === 'form') { setSigil('wait'); renderForm(ev); }
     else if (ev.type === 'poll_resolved' || ev.type === 'form_resolved') {
       const card = cardById('poll', ev.id);
       if (card) card.style.borderColor = ev.submitted ? 'rgba(183,196,174,0.7)' : 'rgba(244,239,230,0.12)';
-      if (ev.submitted) setVerdict(card, true, formatAnswers(ev.answers));
+      if (ev.submitted) { setSigil('think'); setVerdict(card, true, formatAnswers(ev.answers)); }
       else setVerdict(card, false, 'Timed out');
     }
   }

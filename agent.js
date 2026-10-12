@@ -6,6 +6,7 @@ const { loadMemory } = require('./memory');
 const { decide, remember } = require('./gatekeeper');
 const { loadLessonsPrompt, learnFromRun, captureFeedback, isCorrection, isTeaching, compactResult } = require('./learn');
 const vault = require('./vault');
+const { localAvailable, preferGoogle, callLocal, callGrok } = require('./llm');
 
 const MAX_STEPS = 24;
 
@@ -482,13 +483,17 @@ async function runAgent(userText, history, config, emit, requestApproval, attach
     try { emit(ev); } catch { /* a bad listener must not kill the run */ }
   };
 
-  if (!config.apiKey) {
+  const localOk = await localAvailable();
+  const grokOn = Boolean(String(process.env.XAI_API_KEY || '').trim());
+  if (!grokOn && !config.apiKey && !localOk) {
     say({
       type: 'error',
-      text: 'No GEMINI_API_KEY set. Get a free key at https://aistudio.google.com/apikey and put it in .env, then restart Kyte.',
+      text: 'No model is available. Set an xAI key, start a local model, or set GEMINI_API_KEY in .env, then restart Kyte.',
     });
     return;
   }
+  let brain = grokOn ? 'grok' : (localOk && !preferGoogle(userText) ? 'local' : 'google');
+  if (brain === 'google' && !config.apiKey) brain = localOk ? 'local' : 'grok';
 
   const trace = { userText, tools: [], replies: [], failed: false };
   try {
@@ -511,11 +516,38 @@ async function runAgent(userText, history, config, emit, requestApproval, attach
     if (filed.length) {
       say({ type: 'learned', summary: filed.slice(0, 3).map((l) => l.title).join(' · ') });
     }
+    if (brain === 'grok') {
+      say({ type: 'status', state: 'thinking', note: 'Thinking with Grok' });
+    } else if (brain === 'local') {
+      say({ type: 'status', state: 'thinking', note: 'Thinking on this Mac' });
+    } else if (localOk) {
+      say({ type: 'status', state: 'thinking', note: 'Using Google for this one' });
+    }
 
     for (let step = 0; step < MAX_STEPS; step++) {
       if (stop()) return;
       try { capHistory(history); } catch { /* keep the run alive */ }
-      const content = await callGemini(history, config, emit, stop);
+      let content;
+      try {
+        content = brain === 'grok'
+          ? await callGrok(history, systemPrompt())
+          : brain === 'local'
+            ? await callLocal(history, systemPrompt())
+            : await callGemini(history, config, emit, stop);
+      } catch (err) {
+        if (stop()) throw err;
+        if (brain === 'grok' && localOk) {
+          brain = 'local';
+          say({ type: 'status', state: 'thinking', note: 'Grok stalled — continuing on this Mac' });
+          content = await callLocal(history, systemPrompt());
+        } else if (brain !== 'google' && config.apiKey) {
+          brain = 'google';
+          say({ type: 'status', state: 'thinking', note: 'Handing this step to Google' });
+          content = await callGemini(history, config, emit, stop);
+        } else {
+          throw err;
+        }
+      }
       if (stop() || !content) return;
       history.push(content);
 

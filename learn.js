@@ -369,7 +369,6 @@ function heuristicLearn(trace) {
 }
 
 async function extractLessons(trace, config) {
-  if (!config?.apiKey) return [];
   const tools = (trace.tools || []).slice(-12).map((t) => ({
     name: t.name,
     ok: t.ok,
@@ -393,6 +392,39 @@ async function extractLessons(trace, config) {
     `Outcome: ${trace.failed ? 'failed or stopped short' : 'finished'}`,
   ].join('\n');
 
+  try {
+    const { completeGrok } = require('./llm');
+    if (String(process.env.XAI_API_KEY || '').trim()) {
+      const text = await completeGrok(prompt);
+      const json = String(text || '').replace(/^```json\s*|```$/g, '').trim();
+      const start = json.indexOf('{');
+      const end = json.lastIndexOf('}');
+      if (start >= 0) {
+        const parsed = JSON.parse(json.slice(start, end + 1));
+        if (Array.isArray(parsed.lessons)) return parsed.lessons.slice(0, 3);
+      }
+    }
+  } catch {
+    /* the local model can still extract the lesson */
+  }
+
+  try {
+    const { completeLocal, localAvailable } = require('./llm');
+    if (await localAvailable()) {
+      const text = await completeLocal(prompt);
+      const json = String(text || '').replace(/^```json\s*|```$/g, '').trim();
+      const start = json.indexOf('{');
+      const end = json.lastIndexOf('}');
+      if (start >= 0) {
+        const parsed = JSON.parse(json.slice(start, end + 1));
+        if (Array.isArray(parsed.lessons)) return parsed.lessons.slice(0, 3);
+      }
+    }
+  } catch {
+    /* Google can still extract the lesson */
+  }
+
+  if (!config?.apiKey) return [];
   const models = [config.model || 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest'];
   for (const model of models) {
     try {

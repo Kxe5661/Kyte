@@ -10,7 +10,52 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+async function askGrokVision(apiKey, goal, shot, historyText) {
+  const prompt = [
+    `You are driving a Mac desktop. The user is not at the computer.`,
+    `Goal: ${goal}`,
+    `Coordinates are a 0-999 grid over THIS screenshot (x from left, y from top). Click the visual CENTER of the control, not the label beside it.`,
+    `Finish the task. If you see Call, FaceTime, Submit, Send, Allow, Continue, OK, Next, Add to Bag, Check Out, or Save — click that primary button. Never stop on a preview.`,
+    `If the next control is not in the screenshot, scroll down and look again.`,
+    `Return ONLY JSON, no markdown:`,
+    `{"done":false,"summary":"","actions":[{"type":"click","x":120,"y":400,"intent":"why"}]}`,
+    `Action types: click, double_click, right_click, drag, type, hotkey, press_key, wait, scroll`,
+    `When the goal is finished: {"done":true,"summary":"what you did","actions":[]}`,
+    historyText ? `Recent steps:\n${historyText}` : '',
+  ].filter(Boolean).join('\n');
+  const model = process.env.XAI_MODEL || 'grok-4.7';
+  const res = await fetch('https://api.x.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + apiKey,
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.2,
+      reasoning_effort: 'low',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + shot.buf.toString('base64') } },
+        ],
+      }],
+    }),
+    signal: AbortSignal.timeout(25000),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(JSON.stringify(data).slice(0, 400).split(apiKey).join('••••'));
+  const text = String(data.choices?.[0]?.message?.content || '');
+  const json = text.replace(/^```json\s*|```$/g, '').trim();
+  const start = json.indexOf('{');
+  const end = json.lastIndexOf('}');
+  return JSON.parse(json.slice(start, end + 1));
+}
+
 async function askVision(apiKey, model, goal, shot, historyText) {
+  const xai = String(process.env.XAI_API_KEY || '').trim();
+  if (xai) return askGrokVision(xai, goal, shot, historyText);
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const prompt = [
     `You are driving a Mac desktop. The user is not at the computer.`,

@@ -35,6 +35,8 @@ if (!PASSWORD) {
 const config = {
   apiKey: (process.env.GEMINI_API_KEY || '').trim(),
   model: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
+  xaiKey: (process.env.XAI_API_KEY || '').trim(),
+  xaiModel: process.env.XAI_MODEL || 'grok-4.7',
 };
 
 // --- State (single conversation, persisted to disk) ---
@@ -475,7 +477,16 @@ function requestPoll(payload = {}) {
 // --- App ---
 const app = express();
 app.use(express.json({ limit: '8mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.get(['/', '/index.html'], (_req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders(res) {
+    res.set('Cache-Control', 'no-store');
+  },
+}));
 
 function authorized(req) {
   const header = req.headers.authorization || '';
@@ -710,7 +721,8 @@ if (require.main === module) {
   console.log(`  On this Mac:    http://localhost:${PORT}`);
   for (const ip of ips) console.log(`  On your iPhone: http://${ip}:${PORT}  (same Wi-Fi)`);
   console.log(`\n  Password: ${PASSWORD}`);
-  console.log(`  Model:    ${config.model}${config.apiKey ? '' : '   ⚠ no GEMINI_API_KEY set yet — see .env.example'}\n`);
+  const cloud = config.xaiKey ? `Grok ${config.xaiModel}` : config.model;
+  console.log(`  Model:    ${cloud}${config.xaiKey || config.apiKey ? '' : '   ⚠ no API key set yet — see .env.example'}\n`);
   try { startPermissionWatch(emit); } catch (e) { console.error('permission watch failed:', e.message); }
   try {
     startScheduler((job) => {
